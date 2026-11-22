@@ -335,6 +335,7 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
         container.appendChild(renderer.domElement);
 
         const controls = new OrbitControls(camera, renderer.domElement);
@@ -342,81 +343,205 @@
         controls.dampingFactor = 0.05;
         controls.maxDistance = 1500;
 
-        const ambientLight = new THREE.AmbientLight(0x222240, 1.5);
+        // ===== SISTEMA DE ILUMINAÇÃO AVANÇADO =====
+        // Ambiente frio do espaço profundo
+        const ambientLight = new THREE.AmbientLight(0x1a1a2e, 0.6);
         scene.add(ambientLight);
 
-        const pointLight = new THREE.PointLight(0xffedd5, 3.5, 1000, 0.5);
-        scene.add(pointLight);
+        // Luz principal emitida pelo disco de acreção (quente, laranja/vermelho)
+        const bhLight = new THREE.PointLight(0xff6b35, 12.0, 1000, 1.8);
+        bhLight.position.set(0, 0, 0);
+        scene.add(bhLight);
 
-        // Estrelas
+        // Luz de preenchimento fria (azul/violeta) para criar contraste cinematográfico
+        const fillLight = new THREE.PointLight(0x4a6fa5, 3.0, 600, 1.0);
+        fillLight.position.set(-250, 200, 250);
+        scene.add(fillLight);
+
+        // Luz de realce (rim light) roxa para contorno dos planetas
+        const rimLight = new THREE.DirectionalLight(0x8b5cf6, 2.0);
+        rimLight.position.set(150, 150, -150);
+        scene.add(rimLight);
+
+        // Luz pontual sutil para o "lado noturno" dos planetas (luz de estrelas distantes)
+        const starFillLight = new THREE.HemisphereLight(0x222244, 0x000000, 0.4);
+        scene.add(starFillLight);
+
+        // ===== ESTRELAS DE FUNDO PROCEDURAIS =====
         const starGeometry = new THREE.BufferGeometry();
-        const starCount = 3000;
+        const starCount = 4000;
         const starPositions = new Float32Array(starCount * 3);
+        const starColors = new Float32Array(starCount * 3);
+        const starSizes = new Float32Array(starCount);
+
         for(let i=0; i<starCount*3; i+=3) {
-            starPositions[i] = (Math.random() - 0.5) * 3000;
-            starPositions[i+1] = (Math.random() - 0.5) * 3000;
-            starPositions[i+2] = (Math.random() - 0.5) * 3000;
+            starPositions[i] = (Math.random() - 0.5) * 4000;
+            starPositions[i+1] = (Math.random() - 0.5) * 4000;
+            starPositions[i+2] = (Math.random() - 0.5) * 4000;
+            
+            // Variação de cor das estrelas (branco, azulado, amarelado, avermelhado)
+            const colorChoice = Math.random();
+            if(colorChoice < 0.5) { // Branca/Amarelada
+                starColors[i] = 1.0; starColors[i+1] = 0.95; starColors[i+2] = 0.8;
+            } else if(colorChoice < 0.75) { // Azulada
+                starColors[i] = 0.7; starColors[i+1] = 0.85; starColors[i+2] = 1.0;
+            } else { // Avermelhada
+                starColors[i] = 1.0; starColors[i+1] = 0.6; starColors[i+2] = 0.4;
+            }
+            starSizes[i/3] = 0.5 + Math.random() * 1.5;
         }
+
         starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-        const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 1.2, transparent: true, opacity: 0.8 });
+        starGeometry.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
+        starGeometry.setAttribute('size', new THREE.BufferAttribute(starSizes, 1));
+        
+        const starMaterial = new THREE.PointsMaterial({ 
+            vertexColors: true, 
+            size: 1, 
+            transparent: true, 
+            opacity: 0.9,
+            sizeAttenuation: true
+        });
         const starField = new THREE.Points(starGeometry, starMaterial);
         scene.add(starField);
 
-        // Buraco Negro 5D
+        // ===== NEBULOSA DE FUNDO (Partículas grandes e tênues) =====
+        const nebulaGeo = new THREE.BufferGeometry();
+        const nebulaCount = 300;
+        const nebulaPos = new Float32Array(nebulaCount * 3);
+        const nebulaCol = new Float32Array(nebulaCount * 3);
+        
+        for(let i=0; i<nebulaCount*3; i+=3) {
+            const r = 500 + Math.random() * 1500;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            
+            nebulaPos[i] = r * Math.sin(phi) * Math.cos(theta);
+            nebulaPos[i+1] = r * Math.sin(phi) * Math.sin(theta);
+            nebulaPos[i+2] = r * Math.cos(phi);
+            
+            // Cores de nebulosa roxa/ciano
+            nebulaCol[i] = 0.5 + Math.random() * 0.3;
+            nebulaCol[i+1] = 0.2 + Math.random() * 0.3;
+            nebulaCol[i+2] = 0.6 + Math.random() * 0.4;
+        }
+        nebulaGeo.setAttribute('position', new THREE.BufferAttribute(nebulaPos, 3));
+        nebulaGeo.setAttribute('color', new THREE.BufferAttribute(nebulaCol, 3));
+        const nebulaMat = new THREE.PointsMaterial({ 
+            vertexColors: true, 
+            size: 15, 
+            transparent: true, 
+            opacity: 0.08,
+            sizeAttenuation: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+        const nebula = new THREE.Points(nebulaGeo, nebulaMat);
+        scene.add(nebula);
+
+        // ===== BURACO NEGRO CENTRAL (5D Tangherlini) =====
         const bhGroup = new THREE.Group();
         scene.add(bhGroup);
 
+        // Horizonte de Eventos (Esfera preta absoluta)
         const horizonGeometry = new THREE.SphereGeometry(25, 64, 64);
         const horizonMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
         const horizonMesh = new THREE.Mesh(horizonGeometry, horizonMaterial);
         bhGroup.add(horizonMesh);
 
-        const photonGeometry = new THREE.RingGeometry(26, 32, 64);
-        const photonMaterial = new THREE.MeshBasicMaterial({ color: 0xffa07a, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
+        // Anel de Fótons / Brilho de Borda do Horizonte
+        const photonGeometry = new THREE.RingGeometry(26, 32, 128);
+        const photonMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xffa07a, 
+            side: THREE.DoubleSide, 
+            transparent: true, 
+            opacity: 0.9,
+            blending: THREE.AdditiveBlending
+        });
         const photonMesh = new THREE.Mesh(photonGeometry, photonMaterial);
         photonMesh.rotation.x = Math.PI / 2;
         bhGroup.add(photonMesh);
 
-        const diskParticleCount = 4000;
+        // Glow interno do horizonte (Shader-like effect via sprite)
+        const glowGeo = new THREE.SphereGeometry(28, 32, 32);
+        const glowMat = new THREE.MeshBasicMaterial({ 
+            color: 0xff4400, 
+            transparent: true, 
+            opacity: 0.05,
+            side: THREE.BackSide,
+            depthWrite: false
+        });
+        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+        bhGroup.add(glowMesh);
+
+        // Disco de Acreção (Partículas de Plasma em Espiral - Kepleriano)
+        const diskParticleCount = 6000;
         const diskGeometry = new THREE.BufferGeometry();
         const diskPositions = new Float32Array(diskParticleCount * 3);
         const diskColors = new Float32Array(diskParticleCount * 3);
+        const diskSizes = new Float32Array(diskParticleCount);
         const diskData = [];
 
         for(let i=0; i<diskParticleCount; i++) {
-            const r = 35 + Math.random() * 120;
+            // Distribuição de lei de potência para parecer realista (mais denso perto do BH)
+            const u = Math.random();
+            const r = 30 + Math.pow(u, 0.4) * 150; // Mais partículas no interior
             const theta = Math.random() * Math.PI * 2;
-            const y = (Math.random() - 0.5) * 4;
+            const y = (Math.random() - 0.5) * (3 + r * 0.02); // Disco levemente espesso
             
             diskPositions[i*3] = r * Math.cos(theta);
             diskPositions[i*3+1] = y;
             diskPositions[i*3+2] = r * Math.sin(theta);
 
+            // Gradiente de temperatura: interior azul/branco (mais quente) -> exterior vermelho/laranja
+            const heatRatio = (r - 30) / 150;
             const c = new THREE.Color();
-            c.setHSL(0.05 + (r - 35) / 150 * 0.15, 0.9, 0.6);
+            c.setHSL(0.02 + heatRatio * 0.08, 1.0, 0.5 + heatRatio * 0.4);
             diskColors[i*3] = c.r;
             diskColors[i*3+1] = c.g;
             diskColors[i*3+2] = c.b;
 
-            diskData.push({ r, theta, speed: 0.02 / Math.sqrt(r), y });
+            diskSizes[i] = 0.8 + (1.0 - heatRatio) * 1.5; // Maiores no exterior
+            diskData.push({ r, theta, speed: 0.025 / Math.sqrt(r), y });
         }
 
         diskGeometry.setAttribute('position', new THREE.BufferAttribute(diskPositions, 3));
         diskGeometry.setAttribute('color', new THREE.BufferAttribute(diskColors, 3));
-        const diskMaterial = new THREE.PointsMaterial({ size: 1.5, vertexColors: true, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending });
+        diskGeometry.setAttribute('size', new THREE.BufferAttribute(diskSizes, 1));
+        
+        const diskMaterial = new THREE.PointsMaterial({ 
+            vertexColors: true, 
+            size: 1, 
+            transparent: true, 
+            opacity: 0.9, 
+            blending: THREE.AdditiveBlending,
+            sizeAttenuation: true,
+            depthWrite: false
+        });
         const accretionDisk = new THREE.Points(diskGeometry, diskMaterial);
         bhGroup.add(accretionDisk);
 
-        // Planetas
+        // ===== ANÉIS DE SATURNO (Exemplo de geometria extra) =====
+        const saturnRingGeo = new THREE.RingGeometry(13, 18, 64);
+        const saturnRingMat = new THREE.MeshBasicMaterial({ 
+            color: 0xf5deb3, 
+            side: THREE.DoubleSide, 
+            transparent: true, 
+            opacity: 0.6 
+        });
+        const saturnRing = new THREE.Mesh(saturnRingGeo, saturnRingMat);
+        saturnRing.rotation.x = Math.PI / 2;
+
+        // ===== SISTEMA PLANETÁRIO (8 Planetas) =====
         const planetData = [
-            { name: "Mercúrio", radius: 3.0, distance: 70, speed: 0.03, color: 0x94a3b8, mass: 0.05 },
-            { name: "Vênus", radius: 5.0, distance: 110, speed: 0.022, color: 0xf59e0b, mass: 0.8 },
-            { name: "Terra", radius: 5.5, distance: 160, speed: 0.018, color: 0x3b82f6, mass: 1.0 },
-            { name: "Marte", radius: 4.0, distance: 220, speed: 0.015, color: 0xef4444, mass: 0.1 },
-            { name: "Júpiter", radius: 12.0, distance: 310, speed: 0.01, color: 0xd97706, mass: 317.8 },
-            { name: "Saturno", radius: 10.0, distance: 410, speed: 0.008, color: 0xfde047, mass: 95.2 },
-            { name: "Urano", radius: 7.5, distance: 510, speed: 0.006, color: 0x38bdf8, mass: 14.5 },
-            { name: "Netuno", radius: 7.2, distance: 610, speed: 0.005, color: 0x6366f1, mass: 17.1 }
+            { name: "Mercúrio", radius: 3.0, distance: 70, speed: 0.03, color: 0x94a3b8, mass: 0.05, hasRing: false },
+            { name: "Vênus", radius: 5.0, distance: 110, speed: 0.022, color: 0xf59e0b, mass: 0.8, hasRing: false },
+            { name: "Terra", radius: 5.5, distance: 160, speed: 0.018, color: 0x3b82f6, mass: 1.0, hasRing: false },
+            { name: "Marte", radius: 4.0, distance: 220, speed: 0.015, color: 0xef4444, mass: 0.1, hasRing: false },
+            { name: "Júpiter", radius: 12.0, distance: 310, speed: 0.01, color: 0xd97706, mass: 317.8, hasRing: false },
+            { name: "Saturno", radius: 10.0, distance: 410, speed: 0.008, color: 0xfde047, mass: 95.2, hasRing: true },
+            { name: "Urano", radius: 7.5, distance: 510, speed: 0.006, color: 0x38bdf8, mass: 14.5, hasRing: false },
+            { name: "Netuno", radius: 7.2, distance: 610, speed: 0.005, color: 0x6366f1, mass: 17.1, hasRing: false }
         ];
 
         const planets = [];
@@ -429,28 +554,45 @@
         let selectedPlanet = null;
 
         planetData.forEach(data => {
+            // Órbita visual
             const orbitGeo = new THREE.RingGeometry(data.distance - 0.4, data.distance + 0.4, 128);
-            const orbitMat = new THREE.MeshBasicMaterial({ color: 0x4338ca, side: THREE.DoubleSide, transparent: true, opacity: 0.25 });
+            const orbitMat = new THREE.MeshBasicMaterial({ color: 0x4338ca, side: THREE.DoubleSide, transparent: true, opacity: 0.2, depthWrite: false });
             const orbitMesh = new THREE.Mesh(orbitGeo, orbitMat);
             orbitMesh.rotation.x = Math.PI / 2;
+            orbitMesh.renderOrder = -1;
             scene.add(orbitMesh);
             orbitLines.push(orbitMesh);
 
-            const pGeo = new THREE.SphereGeometry(data.radius, 32, 32);
-            const pMat = new THREE.MeshStandardMaterial({ color: data.color, roughness: 0.7, metalness: 0.2 });
+            // Planeta com MeshStandardMaterial (PBR) para reagir à luz
+            const pGeo = new THREE.SphereGeometry(data.radius, 48, 48);
+            const pMat = new THREE.MeshStandardMaterial({ 
+                color: data.color, 
+                roughness: 0.7, 
+                metalness: 0.15,
+                flatShading: false
+            });
             const pMesh = new THREE.Mesh(pGeo, pMat);
+            
+            // Adicionar anéis se for Saturno
+            if(data.hasRing) {
+                const ring = saturnRing.clone();
+                ring.scale.set(1, 1, 1);
+                pMesh.add(ring);
+            }
             
             pMesh.userData = { ...data, angle: Math.random() * Math.PI * 2, wCoord: (Math.random() - 0.5) * 50 };
             planetGroup.add(pMesh);
             planets.push(pMesh);
         });
 
+        // ===== ESTADOS E INTERAÇÕES =====
         let isPaused = false;
         let timeSpeed = 1.0;
         let simMode = 'visual';
         let xwRotation = 0.5;
         let ywRotation = 0.3;
 
+        // UI Listeners
         document.getElementById('range-xw').addEventListener('input', (e) => {
             xwRotation = parseFloat(e.target.value);
             document.getElementById('val-xw').innerText = xwRotation.toFixed(2);
@@ -489,8 +631,10 @@
         document.getElementById('chk-accretion').addEventListener('change', (e) => {
             accretionDisk.visible = e.target.checked;
             photonMesh.visible = e.target.checked;
+            glowMesh.visible = e.target.checked;
         });
 
+        // Clique para selecionar planeta
         window.addEventListener('click', (e) => {
             mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
@@ -512,11 +656,12 @@
         document.getElementById('btn-focus').addEventListener('click', () => {
             if(selectedPlanet) {
                 const targetPos = selectedPlanet.position;
-                controls.target.copy(targetPos);
-                camera.position.set(targetPos.x + 50, targetPos.y + 30, targetPos.z + 50);
+                controls.target.lerp(targetPos, 0.1);
+                // A câmera segue suavemente via damping do OrbitControls
             }
         });
 
+        // ===== LOOP DE ANIMAÇÃO =====
         const clock = new THREE.Clock();
 
         function animate() {
@@ -526,6 +671,7 @@
             if(!isPaused) {
                 const dt = delta * timeSpeed;
 
+                // Animar Disco de Acreção (Kepleriano realista)
                 const positions = accretionDisk.geometry.attributes.position.array;
                 for(let i=0; i<diskParticleCount; i++) {
                     let x = positions[i*3];
@@ -538,11 +684,21 @@
                 }
                 accretionDisk.geometry.attributes.position.needsUpdate = true;
 
+                // Rotação suave do anel de fótons e glow
+                photonMesh.rotation.z += dt * 0.3;
+                glowMesh.rotation.y += dt * 0.1;
+                glowMesh.rotation.x += dt * 0.05;
+
+                // Animar Nebulosa (rotação lenta)
+                nebula.rotation.y += dt * 0.002;
+
+                // Animar Planetas
                 planets.forEach(p => {
                     if(simMode === 'visual') {
-                        p.userData.angle += p.userData.speed * dt * timeSpeed;
+                        p.userData.angle += p.userData.speed * dt;
                         const dist = p.userData.distance;
                         
+                        // Projeção 4D: Coordenada W oscilante baseada em rotações XW/YW
                         p.userData.wCoord = Math.sin(p.userData.angle * 2 + xwRotation) * 40;
                         const wFactor = 1.0 + (p.userData.wCoord / 200);
 
@@ -550,17 +706,19 @@
                         p.position.z = Math.sin(p.userData.angle) * dist * wFactor;
                         p.position.y = Math.sin(p.userData.angle + ywRotation) * 15;
                     } else {
+                        // Modo Físico: Gravidade 1/r^3 (Newtoniana em 4D espacial)
                         const x = p.position.x;
                         const z = p.position.z;
                         const r2 = x*x + z*z;
                         const r = Math.sqrt(r2);
                         if(r > 5) {
-                            const force = -15000 / (r2 * r);
+                            const force = -20000 / (r2 * r); // F ~ 1/r^3
                             p.position.x += x * force * dt;
                             p.position.z += z * force * dt;
                         }
                     }
-                    p.rotation.y += dt;
+                    p.rotation.y += dt * 0.5;
+                    if(p.children.length > 0) p.children[0].rotation.z = p.rotation.y; // Anéis acompanham
                 });
             }
 
@@ -570,6 +728,7 @@
 
         animate();
 
+        // Redimensionamento
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
