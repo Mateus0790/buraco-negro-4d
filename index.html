@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema HiperSolar — Buraco Negro 4D & Simulação Astronômica</title>
+    <style>
+        :root {
+            --bg-color: #020205;
+            --panel-bg: rgba(10, 10, 20, 0.85);
+            --accent-cyan: #22d3ee;
+            --accent-purple: #a78bfa;
+            --accent-pink: #ec4899;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: rgba(167, 139, 250, 0.25);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        .dashboard {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(12px);
+            border-radius: 12px;
+            padding: 16px 20px;
+            width: 300px;
+            z-index: 10;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+        }
+
+        .dashboard h1 {
+            margin: 0 0 6px 0;
+            font-size: 1.25rem;
+            color: var(--accent-purple);
+            font-weight: 700;
+        }
+
+        .dashboard p {
+            margin: 0 0 12px 0;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .metric-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            padding: 8px 10px;
+            border-radius: 6px;
+        }
+
+        .metric-card span {
+            display: block;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .metric-card strong {
+            font-size: 0.95rem;
+            color: var(--accent-cyan);
+        }
+
+        .control-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(12px);
+            border-radius: 12px;
+            padding: 16px 20px;
+            width: 320px;
+            z-index: 10;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .control-panel h3 {
+            margin: 0 0 10px 0;
+            font-size: 1rem;
+            color: var(--accent-cyan);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 6px;
+        }
+
+        .control-group {
+            margin-bottom: 12px;
+        }
+
+        .control-group label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+
+        .control-group input[type="range"] {
+            width: 100%;
+            accent-color: var(--accent-purple);
+        }
+
+        .btn-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            color: #fff;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+        }
+
+        button:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        button.secondary {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: none;
+        }
+
+        .planet-info {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(12px);
+            border-radius: 12px;
+            padding: 16px 20px;
+            width: 280px;
+            z-index: 10;
+            display: none;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+        }
+
+        .planet-info h2 {
+            margin: 0 0 8px 0;
+            font-size: 1.1rem;
+            color: var(--accent-pink);
+        }
+
+        .planet-info p {
+            margin: 4px 0;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .planet-info p span {
+            color: var(--text-main);
+            font-weight: 500;
+        }
+
+        .github-btn {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: #1e1b4b;
+            color: #c4b5fd;
+            padding: 10px 18px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 600;
+            border: 1px solid #4338ca;
+            z-index: 10;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            transition: all 0.2s;
+        }
+
+        .github-btn:hover {
+            background: #312e81;
+            color: #fff;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            font-size: 0.82rem;
+            color: var(--text-main);
+            cursor: pointer;
+            margin-top: 6px;
+        }
+
+        .checkbox-label input {
+            margin-right: 8px;
+            accent-color: var(--accent-cyan);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div class="dashboard">
+        <h1>🌌 Sistema HiperSolar</h1>
+        <p>Simulação 5D do Buraco Negro Tangherlini com 8 Planetas Orbitantes.</p>
+        
+        <div class="metric-grid">
+            <div class="metric-card">
+                <span>Massa (M☉)</span>
+                <strong id="val-mass">10.0</strong>
+            </div>
+            <div class="metric-card">
+                <span>Horizonte (Rh)</span>
+                <strong id="val-rh">1.42 UA</strong>
+            </div>
+            <div class="metric-card">
+                <span>Temp. Hawking</span>
+                <strong id="val-temp">1.2e-8 K</strong>
+            </div>
+            <div class="metric-card">
+                <span>Corpos</span>
+                <strong>8 Planetas</strong>
+            </div>
+        </div>
+    </div>
+
+    <div class="control-panel">
+        <h3>⚙️ Controles & Hiperespaço 4D</h3>
+        
+        <div class="control-group">
+            <label>Modo de Simulação: <span id="lbl-mode" style="color:var(--accent-cyan)">Visual Estável</span></label>
+            <div class="btn-row">
+                <button id="btn-mode-visual">Visual (Kepler)</button>
+                <button id="btn-mode-physics" class="secondary">Físico (1/r³)</button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>Rotação XW (4D): <span id="val-xw">0.50</span> rad</label>
+            <input type="range" id="range-xw" min="0" max="6.28" step="0.05" value="0.5">
+        </div>
+
+        <div class="control-group">
+            <label>Rotação YW (4D): <span id="val-yw">0.30</span> rad</label>
+            <input type="range" id="range-yw" min="0" max="6.28" step="0.05" value="0.3">
+        </div>
+
+        <div class="control-group">
+            <label>Velocidade do Tempo: <span id="val-time">1.0</span>x</label>
+            <input type="range" id="range-time" min="0" max="3.0" step="0.1" value="1.0">
+        </div>
+
+        <div class="btn-row">
+            <button id="btn-pause">Pausar</button>
+            <button id="btn-reset" class="secondary">Reiniciar</button>
+        </div>
+
+        <label class="checkbox-label">
+            <input type="checkbox" id="chk-orbits" checked> Exibir Trajetórias Orbitais
+        </label>
+        <label class="checkbox-label">
+            <input type="checkbox" id="chk-accretion" checked> Ativar Disco de Acreção
+        </label>
+    </div>
+
+    <div class="planet-info" id="planet-info-panel">
+        <h2 id="info-name">Planeta</h2>
+        <p>Massa: <span id="info-mass">-</span></p>
+        <p>Raio: <span id="info-radius">-</span></p>
+        <p>Distância Média: <span id="info-dist">-</span></p>
+        <p>Período Orbital: <span id="info-period">-</span></p>
+        <button id="btn-focus" style="width:100%; margin-top:10px;">Focar Câmera</button>
+    </div>
+
+    <a href="https://github.com/Mateus0790/buraco-negro-4d" target="_blank" class="github-btn">⭐ GitHub Repository</a>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x020205, 0.0015);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
+        camera.position.set(0, 180, 320);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        container.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxDistance = 1500;
+
+        const ambientLight = new THREE.AmbientLight(0x222240, 1.5);
+        scene.add(ambientLight);
+
+        const pointLight = new THREE.PointLight(0xffedd5, 3.5, 1000, 0.5);
+        scene.add(pointLight);
+
+        // Estrelas
+        const starGeometry = new THREE.BufferGeometry();
+        const starCount = 3000;
+        const starPositions = new Float32Array(starCount * 3);
+        for(let i=0; i<starCount*3; i+=3) {
+            starPositions[i] = (Math.random() - 0.5) * 3000;
+            starPositions[i+1] = (Math.random() - 0.5) * 3000;
+            starPositions[i+2] = (Math.random() - 0.5) * 3000;
+        }
+        starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 1.2, transparent: true, opacity: 0.8 });
+        const starField = new THREE.Points(starGeometry, starMaterial);
+        scene.add(starField);
+
+        // Buraco Negro 5D
+        const bhGroup = new THREE.Group();
+        scene.add(bhGroup);
+
+        const horizonGeometry = new THREE.SphereGeometry(25, 64, 64);
+        const horizonMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        const horizonMesh = new THREE.Mesh(horizonGeometry, horizonMaterial);
+        bhGroup.add(horizonMesh);
+
+        const photonGeometry = new THREE.RingGeometry(26, 32, 64);
+        const photonMaterial = new THREE.MeshBasicMaterial({ color: 0xffa07a, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
+        const photonMesh = new THREE.Mesh(photonGeometry, photonMaterial);
+        photonMesh.rotation.x = Math.PI / 2;
+        bhGroup.add(photonMesh);
+
+        const diskParticleCount = 4000;
+        const diskGeometry = new THREE.BufferGeometry();
+        const diskPositions = new Float32Array(diskParticleCount * 3);
+        const diskColors = new Float32Array(diskParticleCount * 3);
+        const diskData = [];
+
+        for(let i=0; i<diskParticleCount; i++) {
+            const r = 35 + Math.random() * 120;
+            const theta = Math.random() * Math.PI * 2;
+            const y = (Math.random() - 0.5) * 4;
+            
+            diskPositions[i*3] = r * Math.cos(theta);
+            diskPositions[i*3+1] = y;
+            diskPositions[i*3+2] = r * Math.sin(theta);
+
+            const c = new THREE.Color();
+            c.setHSL(0.05 + (r - 35) / 150 * 0.15, 0.9, 0.6);
+            diskColors[i*3] = c.r;
+            diskColors[i*3+1] = c.g;
+            diskColors[i*3+2] = c.b;
+
+            diskData.push({ r, theta, speed: 0.02 / Math.sqrt(r), y });
+        }
+
+        diskGeometry.setAttribute('position', new THREE.BufferAttribute(diskPositions, 3));
+        diskGeometry.setAttribute('color', new THREE.BufferAttribute(diskColors, 3));
+        const diskMaterial = new THREE.PointsMaterial({ size: 1.5, vertexColors: true, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending });
+        const accretionDisk = new THREE.Points(diskGeometry, diskMaterial);
+        bhGroup.add(accretionDisk);
+
+        // Planetas
+        const planetData = [
+            { name: "Mercúrio", radius: 3.0, distance: 70, speed: 0.03, color: 0x94a3b8, mass: 0.05 },
+            { name: "Vênus", radius: 5.0, distance: 110, speed: 0.022, color: 0xf59e0b, mass: 0.8 },
+            { name: "Terra", radius: 5.5, distance: 160, speed: 0.018, color: 0x3b82f6, mass: 1.0 },
+            { name: "Marte", radius: 4.0, distance: 220, speed: 0.015, color: 0xef4444, mass: 0.1 },
+            { name: "Júpiter", radius: 12.0, distance: 310, speed: 0.01, color: 0xd97706, mass: 317.8 },
+            { name: "Saturno", radius: 10.0, distance: 410, speed: 0.008, color: 0xfde047, mass: 95.2 },
+            { name: "Urano", radius: 7.5, distance: 510, speed: 0.006, color: 0x38bdf8, mass: 14.5 },
+            { name: "Netuno", radius: 7.2, distance: 610, speed: 0.005, color: 0x6366f1, mass: 17.1 }
+        ];
+
+        const planets = [];
+        const orbitLines = [];
+        const planetGroup = new THREE.Group();
+        scene.add(planetGroup);
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let selectedPlanet = null;
+
+        planetData.forEach(data => {
+            const orbitGeo = new THREE.RingGeometry(data.distance - 0.4, data.distance + 0.4, 128);
+            const orbitMat = new THREE.MeshBasicMaterial({ color: 0x4338ca, side: THREE.DoubleSide, transparent: true, opacity: 0.25 });
+            const orbitMesh = new THREE.Mesh(orbitGeo, orbitMat);
+            orbitMesh.rotation.x = Math.PI / 2;
+            scene.add(orbitMesh);
+            orbitLines.push(orbitMesh);
+
+            const pGeo = new THREE.SphereGeometry(data.radius, 32, 32);
+            const pMat = new THREE.MeshStandardMaterial({ color: data.color, roughness: 0.7, metalness: 0.2 });
+            const pMesh = new THREE.Mesh(pGeo, pMat);
+            
+            pMesh.userData = { ...data, angle: Math.random() * Math.PI * 2, wCoord: (Math.random() - 0.5) * 50 };
+            planetGroup.add(pMesh);
+            planets.push(pMesh);
+        });
+
+        let isPaused = false;
+        let timeSpeed = 1.0;
+        let simMode = 'visual';
+        let xwRotation = 0.5;
+        let ywRotation = 0.3;
+
+        document.getElementById('range-xw').addEventListener('input', (e) => {
+            xwRotation = parseFloat(e.target.value);
+            document.getElementById('val-xw').innerText = xwRotation.toFixed(2);
+        });
+        document.getElementById('range-yw').addEventListener('input', (e) => {
+            ywRotation = parseFloat(e.target.value);
+            document.getElementById('val-yw').innerText = ywRotation.toFixed(2);
+        });
+        document.getElementById('range-time').addEventListener('input', (e) => {
+            timeSpeed = parseFloat(e.target.value);
+            document.getElementById('val-time').innerText = timeSpeed.toFixed(1);
+        });
+        document.getElementById('btn-pause').addEventListener('click', () => {
+            isPaused = !isPaused;
+            document.getElementById('btn-pause').innerText = isPaused ? "Retomar" : "Pausar";
+        });
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            planets.forEach(p => p.userData.angle = Math.random() * Math.PI * 2);
+            controls.reset();
+        });
+        document.getElementById('btn-mode-visual').addEventListener('click', () => {
+            simMode = 'visual';
+            document.getElementById('lbl-mode').innerText = "Visual Estável";
+            document.getElementById('btn-mode-visual').className = "";
+            document.getElementById('btn-mode-physics').className = "secondary";
+        });
+        document.getElementById('btn-mode-physics').addEventListener('click', () => {
+            simMode = 'physics';
+            document.getElementById('lbl-mode').innerText = "Físico (1/r³)";
+            document.getElementById('btn-mode-physics').className = "";
+            document.getElementById('btn-mode-visual').className = "secondary";
+        });
+        document.getElementById('chk-orbits').addEventListener('change', (e) => {
+            orbitLines.forEach(o => o.visible = e.target.checked);
+        });
+        document.getElementById('chk-accretion').addEventListener('change', (e) => {
+            accretionDisk.visible = e.target.checked;
+            photonMesh.visible = e.target.checked;
+        });
+
+        window.addEventListener('click', (e) => {
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(planets);
+
+            if(intersects.length > 0) {
+                selectedPlanet = intersects[0].object;
+                const d = selectedPlanet.userData;
+                document.getElementById('planet-info-panel').style.display = 'block';
+                document.getElementById('info-name').innerText = d.name;
+                document.getElementById('info-mass').innerText = d.mass + " M⊕";
+                document.getElementById('info-radius').innerText = (d.radius * 200) + " km";
+                document.getElementById('info-dist').innerText = d.distance + " UA";
+                document.getElementById('info-period').innerText = (d.distance * 1.5).toFixed(1) + " anos";
+            }
+        });
+
+        document.getElementById('btn-focus').addEventListener('click', () => {
+            if(selectedPlanet) {
+                const targetPos = selectedPlanet.position;
+                controls.target.copy(targetPos);
+                camera.position.set(targetPos.x + 50, targetPos.y + 30, targetPos.z + 50);
+            }
+        });
+
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+
+            if(!isPaused) {
+                const dt = delta * timeSpeed;
+
+                const positions = accretionDisk.geometry.attributes.position.array;
+                for(let i=0; i<diskParticleCount; i++) {
+                    let x = positions[i*3];
+                    let z = positions[i*3+2];
+                    let r = Math.sqrt(x*x + z*z);
+                    let theta = Math.atan2(z, x) + diskData[i].speed * timeSpeed;
+                    
+                    positions[i*3] = r * Math.cos(theta);
+                    positions[i*3+2] = r * Math.sin(theta);
+                }
+                accretionDisk.geometry.attributes.position.needsUpdate = true;
+
+                planets.forEach(p => {
+                    if(simMode === 'visual') {
+                        p.userData.angle += p.userData.speed * dt * timeSpeed;
+                        const dist = p.userData.distance;
+                        
+                        p.userData.wCoord = Math.sin(p.userData.angle * 2 + xwRotation) * 40;
+                        const wFactor = 1.0 + (p.userData.wCoord / 200);
+
+                        p.position.x = Math.cos(p.userData.angle) * dist * wFactor;
+                        p.position.z = Math.sin(p.userData.angle) * dist * wFactor;
+                        p.position.y = Math.sin(p.userData.angle + ywRotation) * 15;
+                    } else {
+                        const x = p.position.x;
+                        const z = p.position.z;
+                        const r2 = x*x + z*z;
+                        const r = Math.sqrt(r2);
+                        if(r > 5) {
+                            const force = -15000 / (r2 * r);
+                            p.position.x += x * force * dt;
+                            p.position.z += z * force * dt;
+                        }
+                    }
+                    p.rotation.y += dt;
+                });
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
